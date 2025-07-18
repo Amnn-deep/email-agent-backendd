@@ -11,3 +11,4 @@ firebase-admin
 sqlalchemy
 python-jose
 passlib
+groq
