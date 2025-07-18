@@ -9,3 +9,4 @@ httpx
 jinja2
 firebase-admin
 sqlalchemy
+python-jose
