@@ -10,7 +10,7 @@ def send_verification_email(to_email: str, verification_token: str):
     smtp_password = os.getenv("SMTP_PASSWORD", "jsci drpe rkat enns")
     from_email = os.getenv("FROM_EMAIL", smtp_user)
 
-    verify_url = f"http://localhost:8000/verify-email?token={verification_token}"
+    verify_url = f"https://email-agent-backendd.vercel.app/verify-email?token={verification_token}"
     subject = "Verify your email address"
     body = f"""
     <p>Thank you for registering!</p>

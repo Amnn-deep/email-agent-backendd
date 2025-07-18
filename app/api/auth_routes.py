@@ -46,7 +46,7 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
         return {
             "msg": "User registered successfully. Please check your email to verify your account.",
             "verification_token": verification_token,
-            "verification_url": f"http://localhost:8000/verify-email?token={verification_token}"
+            "verification_url": f"https://email-agent-backendd.vercel.app/verify-email?token={verification_token}"
         }
     except Exception as e:
         db.rollback()
