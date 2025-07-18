@@ -2,7 +2,7 @@ import firebase_admin
 from firebase_admin import credentials
 import os
 
-# Use the correct path to your service account JSON file
+# Use the correct. path to your service account JSON file
 FIREBASE_CREDENTIALS = os.getenv("FIREBASE_CREDENTIALS_JSON")
 if not FIREBASE_CREDENTIALS:
     # fallback to local file if env var not set
