@@ -1,0 +1,10 @@
+FastAPI
+uvicorn
+python-dotenv
+aioimaplib
+beautifulsoup4
+email-validator
+pydantic
+httpx
+jinja2
+firebase-admin

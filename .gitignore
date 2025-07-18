@@ -1,0 +1,4 @@
+# Ignore environment and secret files
+.env
+client_secret.json
+email-ai-agent-232b5-firebase-adminsdk-fbsvc-4dfabb18aa.json
