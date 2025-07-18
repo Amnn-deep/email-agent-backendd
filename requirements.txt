@@ -12,3 +12,4 @@ sqlalchemy
 python-jose
 passlib
 groq
+googleapiclient
