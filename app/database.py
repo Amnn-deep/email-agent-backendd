@@ -5,8 +5,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-# Use absolute path for SQLite DB to avoid path confusion
-SQLALCHEMY_DATABASE_URL = "sqlite:///d:/mcp/fastapi-email-agent/app.db"
+
+# Use /tmp/app.db for SQLite on Vercel serverless
+SQLALCHEMY_DATABASE_URL = "sqlite:////tmp/app.db"
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
