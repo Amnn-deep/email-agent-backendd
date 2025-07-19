@@ -21,6 +21,10 @@ def get_valid_gmail_access_token(user: User, db: Session):
     Returns a valid Gmail access token for the user, refreshing if expired.
     Raises HTTPException if refresh fails or tokens are missing.
     """
+    print(f"[DEBUG] Checking Gmail tokens for user: {user.email}")
+    print(f"[DEBUG] Current access token: {user.google_access_token}")
+    print(f"[DEBUG] Current refresh token: {user.google_refresh_token}")
+    print(f"[DEBUG] Token expiry: {user.google_token_expiry}")
     if not user.google_access_token or not user.google_refresh_token or not user.google_token_expiry:
         raise HTTPException(status_code=403, detail="Gmail not authorized for this user.")
     expiry = user.google_token_expiry
@@ -54,6 +58,8 @@ def get_valid_gmail_access_token(user: User, db: Session):
     user.google_access_token = tokens["access_token"]
     expires_in = tokens.get("expires_in", 3600)
     user.google_token_expiry = datetime.utcnow() + timedelta(seconds=expires_in)
+    print(f"[DEBUG] Refreshed access token: {user.google_access_token}")
+    print(f"[DEBUG] New token expiry: {user.google_token_expiry}")
     db.commit()
     return user.google_access_token
 
