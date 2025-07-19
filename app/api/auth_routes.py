@@ -189,9 +189,14 @@ def admin_delete_user(email: str = Query(...), db: Session = Depends(get_db)):
     """
     DEV/TEST ONLY: Delete a user by email. Use for resetting test users.
     """
-    user = db.query(User).filter(User.email == email).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    db.delete(user)
-    db.commit()
-    return {"detail": f"User {email} deleted."}
+    try:
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        db.delete(user)
+        db.commit()
+        return {"detail": f"User {email} deleted."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete user: {str(e)}")
