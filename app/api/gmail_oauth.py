@@ -202,14 +202,27 @@ def gmail_oauth2callback(request: Request, db: Session = Depends(get_db)):
     # Store tokens in DB for user with this email
     user = db.query(User).filter(User.email == email).first()
     if not user:
-        print(f"[DEBUG] No user found for email: {email}")
-        return JSONResponse({"error": "No user found for this email. Please register first."}, status_code=404)
-    user.google_access_token = tokens.get("access_token")
-    user.google_refresh_token = tokens.get("refresh_token")
-    expires_in = tokens.get("expires_in", 3600)
-    user.google_token_expiry = datetime.utcnow() + timedelta(seconds=expires_in)
-    db.commit()
-    print(f"[DEBUG] Gmail account linked for user: {email}")
+        print(f"[DEBUG] No user found for email: {email}, creating new user.")
+        from app.models.user import User as UserModel
+        user = UserModel(
+            email=email,
+            hashed_password="",
+            is_verified=True,
+            google_access_token=tokens.get("access_token"),
+            google_refresh_token=tokens.get("refresh_token"),
+            google_token_expiry=datetime.utcnow() + timedelta(seconds=tokens.get("expires_in", 3600))
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        print(f"[DEBUG] Created new user and linked Gmail: {email}")
+    else:
+        user.google_access_token = tokens.get("access_token")
+        user.google_refresh_token = tokens.get("refresh_token")
+        expires_in = tokens.get("expires_in", 3600)
+        user.google_token_expiry = datetime.utcnow() + timedelta(seconds=expires_in)
+        db.commit()
+        print(f"[DEBUG] Gmail account linked for user: {email}")
     return JSONResponse({"success": True, "message": "Gmail account linked for user.", "email": email})
 
 @router.get("/gmail/messages")
