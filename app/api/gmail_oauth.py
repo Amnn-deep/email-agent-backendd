@@ -1,3 +1,4 @@
+from app.services.email_reader import load_client_secrets
 from fastapi import APIRouter, Request, Depends, HTTPException, Security
 from fastapi.responses import RedirectResponse, JSONResponse
 from app.core.auth import get_current_user
@@ -32,18 +33,8 @@ def get_valid_gmail_access_token(user: User, db: Session):
         expiry = datetime.fromisoformat(expiry)
     if expiry > datetime.utcnow() + timedelta(minutes=1):
         return user.google_access_token
-    # Refresh token
-    # Try to get client_secret.json path from env (for Vercel/serverless), else fallback to local
-    client_secret_path = os.environ.get("GOOGLE_CLIENT_SECRET_JSON")
-    client_secrets = None
-    if client_secret_path and os.path.exists(client_secret_path):
-        with open(client_secret_path) as f:
-            client_secrets = json.load(f)["web"]
-    else:
-        # fallback to project root
-        local_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'client_secret.json')
-        with open(local_path) as f:
-            client_secrets = json.load(f)["web"]
+    # Refresh token using unified client secret loader
+    client_secrets = load_client_secrets()
     data = {
         "client_id": client_secrets["client_id"],
         "client_secret": client_secrets["client_secret"],

@@ -1,3 +1,13 @@
+import os
+import json
+
+# Reusable function to load client secrets using env variable or default path
+def load_client_secrets():
+    CLIENT_SECRET_PATH = os.getenv('CLIENT_SECRET_PATH', 'client_secret.json')
+    if not os.path.exists(CLIENT_SECRET_PATH):
+        raise FileNotFoundError(f"client_secret.json not found at {CLIENT_SECRET_PATH}")
+    with open(CLIENT_SECRET_PATH) as f:
+        return json.load(f)["web"]
 from typing import List
 import google.oauth2.credentials
 import googleapiclient.discovery
@@ -11,19 +21,7 @@ def fetch_daily_emails(current_user: User, db: Session) -> List[str]:
     if not current_user.google_access_token or not current_user.google_refresh_token:
         return []
     try:
-        import os
-        import json
-        # Load client secrets (reuse logic from gmail_oauth.py)
-        client_secret_path = os.environ.get("GOOGLE_CLIENT_SECRET_JSON")
-        client_secrets = None
-        if client_secret_path and os.path.exists(client_secret_path):
-            with open(client_secret_path) as f:
-                client_secrets = json.load(f)["web"]
-        else:
-            local_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'client_secret.json')
-            with open(local_path) as f:
-                client_secrets = json.load(f)["web"]
-
+        client_secrets = load_client_secrets()
         credentials = google.oauth2.credentials.Credentials(
             current_user.google_access_token,
             refresh_token=current_user.google_refresh_token,
