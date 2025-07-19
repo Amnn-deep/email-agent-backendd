@@ -89,16 +89,7 @@ def gmail_authorize(
                     user = None
         if not user:
             raise HTTPException(status_code=403, detail="Not authenticated")
-        client_secret_path = os.environ.get("GOOGLE_CLIENT_SECRET_JSON")
-        client_secrets = None
-        if client_secret_path and os.path.exists(client_secret_path):
-            with open(client_secret_path) as f:
-                client_secrets = json.load(f)["web"]
-        else:
-            # fallback to project root
-            local_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'client_secret.json')
-            with open(local_path) as f:
-                client_secrets = json.load(f)["web"]
+        client_secrets = load_client_secrets()
         # Add openid and email scopes to ensure id_token and email are returned
         params = {
             "client_id": client_secrets["client_id"],
@@ -126,16 +117,7 @@ def gmail_oauth2callback(request: Request, db: Session = Depends(get_db)):
     code = request.query_params.get("code")
     if not code:
         return JSONResponse({"error": "No code in request"}, status_code=400)
-    client_secret_path = os.environ.get("GOOGLE_CLIENT_SECRET_JSON")
-    client_secrets = None
-    if client_secret_path and os.path.exists(client_secret_path):
-        with open(client_secret_path) as f:
-            client_secrets = json.load(f)["web"]
-    else:
-        # fallback to project root
-        local_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'client_secret.json')
-        with open(local_path) as f:
-            client_secrets = json.load(f)["web"]
+    client_secrets = load_client_secrets()
     data = {
         "code": code,
         "client_id": client_secrets["client_id"],
@@ -422,9 +404,8 @@ def summarize_gmail_message(id: str, token: str, db: Session = Depends(get_db)):
         if not user:
             raise HTTPException(status_code=403, detail="User not found for token.")
         # Load client secrets once
-        client_secret_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'client_secret.json')
-        with open(client_secret_path) as f:
-            client_secrets = _json.load(f)["web"]
+        from app.services.email_reader import load_client_secrets
+        client_secrets = load_client_secrets()
         # Get valid Gmail access token
         gmail_token = get_valid_gmail_access_token(user, db)
         credentials = google.oauth2.credentials.Credentials(
