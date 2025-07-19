@@ -5,7 +5,7 @@ import os
 import json
 import base64
 
-# Try to load base64-encoded credentials from env (for serverless/cloud)
+# Try sm to load base64-encoded credentials from env (for serverless/cloud)
 firebase_credentials_b64 = os.environ.get("FIREBASE_CREDENTIALS_JSON")
 cred_obj = None
 

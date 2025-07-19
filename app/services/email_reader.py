@@ -1,43 +1,27 @@
 from typing import List
-import imaplib
-import email
-from email.header import decode_header
+import google.oauth2.credentials
+import googleapiclient.discovery
+from app.models.user import User
+from sqlalchemy.orm import Session
 
-class EmailReader:
-    def __init__(self, email_user: str, email_pass: str):
-        self.email_user = email_user
-        self.email_pass = email_pass
-        self.mail = imaplib.IMAP4_SSL("imap.gmail.com")
-
-    def login(self):
-        self.mail.login(self.email_user, self.email_pass)
-
-    def fetch_daily_emails(self) -> List[str]:
-        self.mail.select("inbox")
-        status, messages = self.mail.search(None, 'ALL')
-        email_ids = messages[0].split()
-        daily_emails = []
-
-        for email_id in email_ids[-10:]:  # Fetch the last 10 emails
-            res, msg = self.mail.fetch(email_id, "(RFC822)")
-            msg = email.message_from_bytes(msg[0][1])
-            subject, encoding = decode_header(msg["Subject"])[0]
-            if isinstance(subject, bytes):
-                subject = subject.decode(encoding if encoding else 'utf-8')
-            daily_emails.append(subject)
-
-        return daily_emails
-
-    def logout(self):
-        self.mail.logout()
-
-# Async wrapper for FastAPI endpoint usage
-def fetch_daily_emails(current_user: str):
-    # Dummy implementation for now, returns example emails
-    # In production, use EmailReader and user credentials
-    return [
-        "Welcome to your inbox!",
-        "Your daily summary",
-        "Meeting at 3 PM",
-        "Invoice attached"
-    ]
+def fetch_daily_emails(current_user: User, db: Session) -> List[str]:
+    """
+    Fetch the latest 10 email subjects from the user's Gmail using OAuth token.
+    """
+    if not current_user.google_access_token:
+        return []
+    try:
+        credentials = google.oauth2.credentials.Credentials(current_user.google_access_token)
+        service = googleapiclient.discovery.build('gmail', 'v1', credentials=credentials)
+        results = service.users().messages().list(userId='me', maxResults=10).execute()
+        messages = results.get('messages', [])
+        subjects = []
+        for msg in messages:
+            msg_detail = service.users().messages().get(userId='me', id=msg['id'], format='metadata', metadataHeaders=['Subject']).execute()
+            headers = msg_detail.get('payload', {}).get('headers', [])
+            subject = next((h['value'] for h in headers if h['name'] == 'Subject'), '(No Subject)')
+            subjects.append(subject)
+        return subjects
+    except Exception as e:
+        print(f"[ERROR] Failed to fetch Gmail emails: {e}")
+        return []

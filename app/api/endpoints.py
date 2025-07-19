@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from app.core.auth import get_current_user
 from app.services.email_reader import fetch_daily_emails
+from sqlalchemy.orm import Session
+from app.database import get_db
 from app.services.summarizer import summarize_email
 from app.services.reply_generator import generate_reply
 from typing import List, Optional
@@ -10,9 +12,9 @@ import googleapiclient.discovery
 router = APIRouter()
 
 @router.get("/emails", response_model=List[str])
-async def read_emails(current_user: str = Depends(get_current_user)):
+async def read_emails(current_user: str = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
-        emails = fetch_daily_emails(current_user)
+        emails = fetch_daily_emails(current_user, db)
         if not emails:
             raise HTTPException(status_code=404, detail="No emails found.")
         return emails
