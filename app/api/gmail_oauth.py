@@ -29,9 +29,17 @@ def get_valid_gmail_access_token(user: User, db: Session):
     if expiry > datetime.utcnow() + timedelta(minutes=1):
         return user.google_access_token
     # Refresh token
-    client_secret_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'client_secret.json')
-    with open(client_secret_path) as f:
-        client_secrets = json.load(f)["web"]
+    # Try to get client_secret.json path from env (for Vercel/serverless), else fallback to local
+    client_secret_path = os.environ.get("GOOGLE_CLIENT_SECRET_JSON")
+    client_secrets = None
+    if client_secret_path and os.path.exists(client_secret_path):
+        with open(client_secret_path) as f:
+            client_secrets = json.load(f)["web"]
+    else:
+        # fallback to project root
+        local_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'client_secret.json')
+        with open(local_path) as f:
+            client_secrets = json.load(f)["web"]
     data = {
         "client_id": client_secrets["client_id"],
         "client_secret": client_secrets["client_secret"],
@@ -84,9 +92,16 @@ def gmail_authorize(
                     user = None
         if not user:
             raise HTTPException(status_code=403, detail="Not authenticated")
-        client_secret_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'client_secret.json')
-        with open(client_secret_path) as f:
-            client_secrets = json.load(f)["web"]
+        client_secret_path = os.environ.get("GOOGLE_CLIENT_SECRET_JSON")
+        client_secrets = None
+        if client_secret_path and os.path.exists(client_secret_path):
+            with open(client_secret_path) as f:
+                client_secrets = json.load(f)["web"]
+        else:
+            # fallback to project root
+            local_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'client_secret.json')
+            with open(local_path) as f:
+                client_secrets = json.load(f)["web"]
         # Add openid and email scopes to ensure id_token and email are returned
         params = {
             "client_id": client_secrets["client_id"],
@@ -114,9 +129,16 @@ def gmail_oauth2callback(request: Request, db: Session = Depends(get_db)):
     code = request.query_params.get("code")
     if not code:
         return JSONResponse({"error": "No code in request"}, status_code=400)
-    client_secret_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'client_secret.json')
-    with open(client_secret_path) as f:
-        client_secrets = json.load(f)["web"]
+    client_secret_path = os.environ.get("GOOGLE_CLIENT_SECRET_JSON")
+    client_secrets = None
+    if client_secret_path and os.path.exists(client_secret_path):
+        with open(client_secret_path) as f:
+            client_secrets = json.load(f)["web"]
+    else:
+        # fallback to project root
+        local_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'client_secret.json')
+        with open(local_path) as f:
+            client_secrets = json.load(f)["web"]
     data = {
         "code": code,
         "client_id": client_secrets["client_id"],
