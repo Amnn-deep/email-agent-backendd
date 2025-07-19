@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 
 
 
-# Use app.db in project root for local development
+# Use app.db in project root to for local development
 import os
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{os.path.join(BASE_DIR, 'app.db')}"
