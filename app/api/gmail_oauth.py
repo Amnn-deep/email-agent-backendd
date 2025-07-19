@@ -146,8 +146,10 @@ def gmail_oauth2callback(request: Request, db: Session = Depends(get_db)):
         "redirect_uri": client_secrets["redirect_uris"][0],
         "grant_type": "authorization_code"
     }
-    print("[DEBUG] OAuth2 token exchange data:", data)
-    print("[DEBUG] token_uri:", client_secrets["token_uri"])
+    print("[DEBUG] Starting OAuth2 callback")
+    print(f"[DEBUG] Authorization code: {code}")
+    print(f"[DEBUG] Client secrets: {client_secrets}")
+    print(f"[DEBUG] Token URI: {client_secrets['token_uri']}")
     token_resp = requests.post(client_secrets["token_uri"], data=data)
     print(f"[DEBUG] Token response: {token_resp.status_code} {token_resp.text}")
     if token_resp.status_code != 200:
@@ -155,6 +157,7 @@ def gmail_oauth2callback(request: Request, db: Session = Depends(get_db)):
         print(f"OAuth2 token exchange failed: {token_resp.text}")
         return JSONResponse({"error": f"OAuth2 token exchange failed: {token_resp.text}"}, status_code=500)
     tokens = token_resp.json()
+    print(f"[DEBUG] Tokens received: {tokens}")
     # Try to get user's email from ID token
     id_token = tokens.get("id_token")
     email = None
