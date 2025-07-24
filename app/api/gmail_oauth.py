@@ -166,9 +166,9 @@ async def gmail_oauth2callback(request: Request, db: Session = Depends(get_db)):
         db.refresh(user)
         print(f"[DEBUG] Gmail account linked for user: {email}")
 
-        # Redirect to frontend or return success response
+        # Redirect to frontend with email, success, and access_token
         frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
-        return RedirectResponse(url=f"{frontend_url}?email={email}&success=true")
+        return RedirectResponse(url=f"{frontend_url}?email={email}&success=true&token={tokens.get('access_token')}")
     except Exception as e:
         import traceback
         logging.error(f"Failed to handle OAuth2 callback: {e}\n{traceback.format_exc()}")
