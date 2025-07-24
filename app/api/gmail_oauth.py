@@ -57,116 +57,122 @@ def get_valid_gmail_access_token(user: User, db: Session):
 
 @router.get("/gmail/authorize", tags=["Gmail"], summary="Gmail Authorize", response_class=RedirectResponse)
 def gmail_authorize():
-    """
-    Initiates Gmail OAuth2 flow for Gmail integration. No authentication required.
-    """
-    try:
-        params = {
-            "client_id": os.getenv("GOOGLE_CLIENT_ID"),
-            "redirect_uri": os.getenv("GOOGLE_REDIRECT_URI"),
-            "response_type": "code",
-            "scope": "openid email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send",
-            "access_type": "offline",
-            "prompt": "consent"
-        }
-        url = f"{os.getenv('GOOGLE_AUTH_URI')}?{urlencode(params)}"
-        print(f"[DEBUG] Redirecting to Google OAuth URL: {url}")
-        return RedirectResponse(url)
-    except Exception as e:
-        import traceback
-        print(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+    params = {
+        "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+        "redirect_uri": os.getenv("GOOGLE_REDIRECT_URI"),
+        "response_type": "code",
+        "scope": "openid email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send",
+        "access_type": "offline",
+        "prompt": "consent"
+    }
+    url = f"{os.getenv('GOOGLE_AUTH_URI')}?{urlencode(params)}"
+    print(f"[DEBUG] Redirecting to Google OAuth URL: {url}")
+    return RedirectResponse(url)
 
 # Step 2: OAuth2 callback to exchange code for tokens
-@router.get("/gmail/oauth2callback")
-def gmail_oauth2callback(request: Request, db: Session = Depends(get_db)):
+@router.get("/gmail/oauth2callback", tags=["Gmail"], summary="Gmail OAuth2 Callback")
+async def gmail_oauth2callback(request: Request, db: Session = Depends(get_db)):
     """
-    Handles Gmail OAuth2 callback, exchanges code for tokens, and stores them for the user.
-    This route does NOT require authentication; it identifies the user by email from the ID token or query param.
+    Handles Gmail OAuth2 callback, exchanges authorization code for tokens, and stores them for the user.
+    Identifies user by email from ID token or userinfo endpoint.
     """
-    code = request.query_params.get("code")
-    if not code:
-        return JSONResponse({"error": "No code in request"}, status_code=400)
-    client_secrets = load_client_secrets()
-    data = {
-        "code": code,
-        "client_id": client_secrets["client_id"],
-        "client_secret": client_secrets["client_secret"],
-        "redirect_uri": client_secrets["redirect_uris"][0],
-        "grant_type": "authorization_code"
-    }
-    print("[DEBUG] Starting OAuth2 callback")
-    print(f"[DEBUG] Authorization code: {code}")
-    print(f"[DEBUG] Client secrets: {client_secrets}")
-    print(f"[DEBUG] Token URI: {client_secrets['token_uri']}")
-    token_resp = requests.post(client_secrets["token_uri"], data=data)
-    print(f"[DEBUG] Token response: {token_resp.status_code} {token_resp.text}")
-    if token_resp.status_code != 200:
-        logging.error(f"OAuth2 token exchange failed: {token_resp.text}")
-        print(f"OAuth2 token exchange failed: {token_resp.text}")
-        return JSONResponse({"error": f"OAuth2 token exchange failed: {token_resp.text}"}, status_code=500)
-    tokens = token_resp.json()
-    print(f"[DEBUG] Tokens received: {tokens}")
-    # Try to get user's email from ID token
-    id_token = tokens.get("id_token")
-    email = None
-    if id_token:
-        try:
-            from google.oauth2 import id_token as google_id_token
-            from google.auth.transport import requests as google_requests
-            idinfo = google_id_token.verify_oauth2_token(id_token, google_requests.Request(), client_secrets["client_id"])
-            print(f"[DEBUG] Decoded id_token: {idinfo}")
-            email = idinfo.get("email")
-        except Exception as e:
-            logging.error(f"Failed to decode id_token: {e}")
-            print(f"[DEBUG] Failed to decode id_token: {e}")
-    # If not in id_token, try to get from query param
-    if not email:
-        email = request.query_params.get("email")
-        print(f"[DEBUG] Email from query param: {email}")
-    # Fallback: Use access token to get email from userinfo endpoint
-    if not email and tokens.get("access_token"):
-        try:
-            userinfo_resp = requests.get(
-                "https://openidconnect.googleapis.com/v1/userinfo",
-                headers={"Authorization": f"Bearer {tokens['access_token']}"}
+    try:
+        # Extract authorization code
+        code = request.query_params.get("code")
+        if not code:
+            logging.error("No authorization code provided in OAuth2 callback")
+            return JSONResponse({"error": "No authorization code provided"}, status_code=400)
+
+        # Prepare token exchange request
+        token_url = os.getenv("GOOGLE_TOKEN_URI", "https://oauth2.googleapis.com/token")
+        data = {
+            "code": code,
+            "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+            "client_secret": os.getenv("GOOGLE_CLIENT_SECRET"),
+            "redirect_uri": os.getenv("GOOGLE_REDIRECT_URI"),
+            "grant_type": "authorization_code"
+        }
+
+        # Exchange code for tokens
+        print(f"[DEBUG] Exchanging code for tokens at {token_url}")
+        token_resp = requests.post(token_url, data=data)
+        print(f"[DEBUG] Token response: {token_resp.status_code} {token_resp.text}")
+
+        if token_resp.status_code != 200:
+            logging.error(f"Token exchange failed: {token_resp.text}")
+            return JSONResponse({"error": f"Token exchange failed: {token_resp.text}"}, status_code=500)
+
+        tokens = token_resp.json()
+        print(f"[DEBUG] Tokens received: {tokens}")
+
+        # Extract email from ID token or userinfo endpoint
+        email = None
+        id_token = tokens.get("id_token")
+        if id_token:
+            try:
+                from google.oauth2 import id_token as google_id_token
+                from google.auth.transport import requests as google_requests
+                idinfo = google_id_token.verify_oauth2_token(
+                    id_token, 
+                    google_requests.Request(), 
+                    os.getenv("GOOGLE_CLIENT_ID")
+                )
+                print(f"[DEBUG] Decoded id_token: {idinfo}")
+                email = idinfo.get("email")
+            except Exception as e:
+                logging.error(f"Failed to decode id_token: {e}")
+                print(f"[DEBUG] Failed to decode id_token: {e}")
+
+        # Fallback: Use access token to get email from userinfo endpoint
+        if not email and tokens.get("access_token"):
+            try:
+                userinfo_resp = requests.get(
+                    "https://openidconnect.googleapis.com/v1/userinfo",
+                    headers={"Authorization": f"Bearer {tokens['access_token']}"}
+                )
+                if userinfo_resp.status_code == 200:
+                    userinfo = userinfo_resp.json()
+                    email = userinfo.get("email")
+                    print(f"[DEBUG] Email from userinfo endpoint: {email}")
+                else:
+                    print(f"[DEBUG] Failed to get userinfo: {userinfo_resp.status_code} {userinfo_resp.text}")
+            except Exception as e:
+                print(f"[DEBUG] Exception while getting userinfo: {e}")
+
+        if not email:
+            print(f"[DEBUG] Could not determine user email from OAuth callback. Tokens: {tokens}")
+            return JSONResponse({"error": "Could not determine user email from OAuth callback."}, status_code=400)
+
+        # Store tokens in DB for user with this email
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            print(f"[DEBUG] No user found for email: {email}, creating new user.")
+            from app.models.user import User as UserModel
+            user = UserModel(
+                email=email,
+                hashed_password="",
+                is_verified=True,
+                google_access_token=tokens.get("access_token"),
+                google_refresh_token=tokens.get("refresh_token"),
+                google_token_expiry=datetime.utcnow() + timedelta(seconds=tokens.get("expires_in", 3600))
             )
-            if userinfo_resp.status_code == 200:
-                userinfo = userinfo_resp.json()
-                email = userinfo.get("email")
-                print(f"[DEBUG] Email from userinfo endpoint: {email}")
-            else:
-                print(f"[DEBUG] Failed to get userinfo: {userinfo_resp.status_code} {userinfo_resp.text}")
-        except Exception as e:
-            print(f"[DEBUG] Exception while getting userinfo: {e}")
-    if not email:
-        print(f"[DEBUG] Could not determine user email from OAuth callback. Tokens: {tokens}")
-        return JSONResponse({"error": "Could not determine user email from OAuth callback.", "tokens": tokens}, status_code=400)
-    # Store tokens in DB for user with this email
-    user = db.query(User).filter(User.email == email).first()
-    if not user:
-        print(f"[DEBUG] No user found for email: {email}, creating new user.")
-        from app.models.user import User as UserModel
-        user = UserModel(
-            email=email,
-            hashed_password="",
-            is_verified=True,
-            google_access_token=tokens.get("access_token"),
-            google_refresh_token=tokens.get("refresh_token"),
-            google_token_expiry=datetime.utcnow() + timedelta(seconds=tokens.get("expires_in", 3600))
-        )
-        db.add(user)
+            db.add(user)
+        else:
+            user.google_access_token = tokens.get("access_token")
+            user.google_refresh_token = tokens.get("refresh_token")
+            user.google_token_expiry = datetime.utcnow() + timedelta(seconds=tokens.get("expires_in", 3600))
+        
         db.commit()
         db.refresh(user)
-        print(f"[DEBUG] Created new user and linked Gmail: {email}")
-    else:
-        user.google_access_token = tokens.get("access_token")
-        user.google_refresh_token = tokens.get("refresh_token")
-        expires_in = tokens.get("expires_in", 3600)
-        user.google_token_expiry = datetime.utcnow() + timedelta(seconds=expires_in)
-        db.commit()
         print(f"[DEBUG] Gmail account linked for user: {email}")
-    return JSONResponse({"success": True, "message": "Gmail account linked for user.", "email": email})
+
+        # Redirect to frontend or return success response
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+        return RedirectResponse(url=f"{frontend_url}?email={email}&success=true")
+    except Exception as e:
+        import traceback
+        logging.error(f"Failed to handle OAuth2 callback: {e}\n{traceback.format_exc()}")
+        return JSONResponse({"error": f"Internal server error: {str(e)}"}, status_code=500)
 
 @router.get("/gmail/messages")
 def get_gmail_messages(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
