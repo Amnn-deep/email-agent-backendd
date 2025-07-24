@@ -1,13 +1,4 @@
 import os
-import json
-
-# Reusable function to load client secrets using env variable or default path
-def load_client_secrets():
-    CLIENT_SECRET_PATH = os.getenv('CLIENT_SECRET_PATH', 'client_secret.json')
-    if not os.path.exists(CLIENT_SECRET_PATH):
-        raise FileNotFoundError(f"client_secret.json not found at {CLIENT_SECRET_PATH}")
-    with open(CLIENT_SECRET_PATH) as f:
-        return json.load(f)["web"]
 from typing import List
 import google.oauth2.credentials
 import googleapiclient.discovery
@@ -21,13 +12,12 @@ def fetch_daily_emails(current_user: User, db: Session) -> List[str]:
     if not current_user.google_access_token or not current_user.google_refresh_token:
         return []
     try:
-        client_secrets = load_client_secrets()
         credentials = google.oauth2.credentials.Credentials(
             current_user.google_access_token,
             refresh_token=current_user.google_refresh_token,
-            token_uri=client_secrets["token_uri"],
-            client_id=client_secrets["client_id"],
-            client_secret=client_secrets["client_secret"]
+            token_uri=os.getenv("GOOGLE_TOKEN_URI"),
+            client_id=os.getenv("GOOGLE_CLIENT_ID"),
+            client_secret=os.getenv("GOOGLE_CLIENT_SECRET")
         )
         service = googleapiclient.discovery.build('gmail', 'v1', credentials=credentials)
         results = service.users().messages().list(userId='me', maxResults=10).execute()

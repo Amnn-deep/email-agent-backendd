@@ -1,6 +1,20 @@
-from fastapi import Security
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from app.core.auth import get_current_user
+from app.models.user import User
+from app.services.email_reader import fetch_daily_emails
+from sqlalchemy.orm import Session
+from app.database import get_db
+from app.services.summarizer import summarize_email
+from app.services.reply_generator import generate_reply
+from typing import List, Optional
+import google.oauth2.credentials
+import googleapiclient.discovery
+
+router = APIRouter()
 bearer_scheme = HTTPBearer(auto_error=False)
+
 @router.get("/gmail/messages")
 async def get_gmail_messages(
     credentials: HTTPAuthorizationCredentials = Security(bearer_scheme),
@@ -20,19 +34,6 @@ async def get_gmail_messages(
         return {"messages": messages}
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Could not validate credentials: {str(e)}")
-from fastapi import APIRouter, Depends, HTTPException, Query
-from app.core.auth import get_current_user
-from app.models.user import User
-from app.services.email_reader import fetch_daily_emails
-from sqlalchemy.orm import Session
-from app.database import get_db
-from app.services.summarizer import summarize_email
-from app.services.reply_generator import generate_reply
-from typing import List, Optional
-import google.oauth2.credentials
-import googleapiclient.discovery
-
-router = APIRouter()
 
 @router.get("/emails", response_model=List[str])
 async def read_emails(current_user: str = Depends(get_current_user), db: Session = Depends(get_db)):

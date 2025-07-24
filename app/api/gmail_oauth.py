@@ -1,4 +1,4 @@
-from app.services.email_reader import load_client_secrets
+import os
 from fastapi import APIRouter, Request, Depends, HTTPException, Security
 from fastapi.responses import RedirectResponse, JSONResponse
 from app.core.auth import get_current_user
@@ -34,14 +34,13 @@ def get_valid_gmail_access_token(user: User, db: Session):
     if expiry > datetime.utcnow() + timedelta(minutes=1):
         return user.google_access_token
     # Refresh token using unified client secret loader
-    client_secrets = load_client_secrets()
     data = {
-        "client_id": client_secrets["client_id"],
-        "client_secret": client_secrets["client_secret"],
+        "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+        "client_secret": os.getenv("GOOGLE_CLIENT_SECRET"),
         "refresh_token": user.google_refresh_token,
         "grant_type": "refresh_token"
     }
-    resp = requests.post(client_secrets["token_uri"], data=data)
+    resp = requests.post(os.getenv("GOOGLE_TOKEN_URI"), data=data)
     if resp.status_code != 200:
         logging.error(f"Failed to refresh Gmail token: {resp.text}")
         raise HTTPException(status_code=401, detail="Failed to refresh Gmail token.")
@@ -89,17 +88,15 @@ def gmail_authorize(
                     user = None
         if not user:
             raise HTTPException(status_code=403, detail="Not authenticated")
-        client_secrets = load_client_secrets()
-        # Add openid and email scopes to ensure id_token and email are returned
         params = {
-            "client_id": client_secrets["client_id"],
-            "redirect_uri": client_secrets["redirect_uris"][0],
+            "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+            "redirect_uri": os.getenv("GOOGLE_REDIRECT_URI"),
             "response_type": "code",
             "scope": "openid email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send",
             "access_type": "offline",
             "prompt": "consent"
         }
-        url = f"{client_secrets['auth_uri']}?{urlencode(params)}"
+        url = f"{os.getenv('GOOGLE_AUTH_URI')}?{urlencode(params)}"
         print(f"[DEBUG] Redirecting to Google OAuth URL: {url}")
         return RedirectResponse(url)
     except Exception as e:
