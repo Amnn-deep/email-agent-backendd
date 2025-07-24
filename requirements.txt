@@ -13,3 +13,4 @@ python-jose
 passlib
 groq
 google-api-python-client
+psycopg2
