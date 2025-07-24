@@ -1,3 +1,25 @@
+from fastapi import Security
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+bearer_scheme = HTTPBearer(auto_error=False)
+@router.get("/gmail/messages")
+async def get_gmail_messages(
+    credentials: HTTPAuthorizationCredentials = Security(bearer_scheme),
+    db: Session = Depends(get_db)
+):
+    """
+    Fetch Gmail messages using Bearer token from Authorization header.
+    """
+    if not credentials or not credentials.credentials:
+        raise HTTPException(status_code=401, detail="Could not validate credentials")
+    token = credentials.credentials
+    try:
+        credentials_obj = google.oauth2.credentials.Credentials(token)
+        service = googleapiclient.discovery.build('gmail', 'v1', credentials=credentials_obj)
+        results = service.users().messages().list(userId='me', maxResults=10).execute()
+        messages = results.get('messages', [])
+        return {"messages": messages}
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Could not validate credentials: {str(e)}")
 from fastapi import APIRouter, Depends, HTTPException, Query
 from app.core.auth import get_current_user
 from app.models.user import User
