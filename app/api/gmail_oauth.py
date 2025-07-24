@@ -54,40 +54,13 @@ def get_valid_gmail_access_token(user: User, db: Session):
     return user.google_access_token
 
 # Step 1: Redirect user to Google's OAuth 2.0 server
+
 @router.get("/gmail/authorize", tags=["Gmail"], summary="Gmail Authorize", response_class=RedirectResponse)
-def gmail_authorize(
-    request: Request,
-    credentials: HTTPAuthorizationCredentials = Security(bearer_scheme),
-    db: Session = Depends(get_db)
-):
+def gmail_authorize():
     """
-    Initiates Gmail OAuth2 flow for the authenticated user.
-    Allows both Swagger UI (header) and browser (cookie) authentication.
-    Returns 403 if user is not authenticated.
+    Initiates Gmail OAuth2 flow for Gmail integration. No authentication required.
     """
     try:
-        from app.core.auth import get_current_user
-        token = None
-        user = None
-        # Try to get JWT from Authorization header (Swagger UI/Postman)
-        if credentials:
-            token = credentials.credentials
-            try:
-                user = get_current_user(token=token, db=db)
-            except Exception as e:
-                print(f"Header token error: {e}")
-                user = None
-        # If not found, try to get JWT from cookie (browser)
-        if not user and request:
-            cookie_token = request.cookies.get("access_token")
-            if cookie_token:
-                try:
-                    user = get_current_user(token=cookie_token, db=db)
-                except Exception as e:
-                    print(f"Cookie token error: {e}")
-                    user = None
-        if not user:
-            raise HTTPException(status_code=403, detail="Not authenticated")
         params = {
             "client_id": os.getenv("GOOGLE_CLIENT_ID"),
             "redirect_uri": os.getenv("GOOGLE_REDIRECT_URI"),
