@@ -1,5 +1,5 @@
 import os
-from fastapi import APIRouter, Request, Depends, HTTPException, Security
+from fastapi import APIRouter, Request, Depends, HTTPException, Security, Query
 from fastapi.responses import RedirectResponse, JSONResponse
 from app.core.auth import get_current_user
 import os
@@ -203,27 +203,24 @@ def get_gmail_messages(db: Session = Depends(get_db), current_user: User = Depen
         return JSONResponse({"error": f"Failed to fetch Gmail messages: {e}"}, status_code=500)
 
 @router.get("/gmail/message/{message_id}")
-def get_gmail_message(message_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_gmail_message(
+    message_id: str,
+    credentials: HTTPAuthorizationCredentials = Security(HTTPBearer(auto_error=False)),
+    db: Session = Depends(get_db)
+):
     """
-    Fetches the details of a specific Gmail message by ID.
+    Fetches the details of a specific Gmail message by ID using Bearer token from Authorization header.
     Returns only necessary fields: subject, from, to, date, snippet, and body (plain text if available).
     """
+    if not credentials or not credentials.credentials:
+        raise HTTPException(status_code=401, detail="Could not validate credentials")
+    token = credentials.credentials
     try:
         import google.oauth2.credentials
         import googleapiclient.discovery
-        # If current_user is a string (token), fetch the user from DB
-        if isinstance(current_user, str):
-            user = db.query(User).filter(User.email == current_user).first()
-            if not user:
-                raise HTTPException(status_code=403, detail="User not found for token.")
-            current_user = user
-        print(f"[DEBUG] current_user: {getattr(current_user, 'email', None)}")
-        token = get_valid_gmail_access_token(current_user, db)
-        print(f"[DEBUG] Gmail access token: {token}")
-        credentials = google.oauth2.credentials.Credentials(token)
-        service = googleapiclient.discovery.build('gmail', 'v1', credentials=credentials)
+        credentials_obj = google.oauth2.credentials.Credentials(token)
+        service = googleapiclient.discovery.build('gmail', 'v1', credentials=credentials_obj)
         message = service.users().messages().get(userId='me', id=message_id, format='full').execute()
-        print(f"[DEBUG] Gmail API message response: {message}")
         headers = message.get('payload', {}).get('headers', [])
         def get_header(name):
             for h in headers:
@@ -280,7 +277,12 @@ def get_gmail_profile(db: Session = Depends(get_db), current_user: User = Depend
         return JSONResponse({"error": "Failed to fetch Gmail profile."}, status_code=500)
 
 @router.post("/gmail/ai-reply/{message_id}")
-def ai_reply_to_email(message_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def ai_reply_to_email(
+    message_id: str,
+    token: str = Query(None),  # Accept token as query param
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """
     Generate an AI reply for a specific Gmail message by its ID.
     The reply will be a direct summary of the email content, not a generic or instructional sentence.
@@ -299,9 +301,13 @@ def ai_reply_to_email(message_id: str, db: Session = Depends(get_db), current_us
                 raise HTTPException(status_code=403, detail="User not found for token.")
             current_user = user
         print(f"[DEBUG] current_user: {getattr(current_user, 'email', None)}")
-        token = get_valid_gmail_access_token(current_user, db)
-        print(f"[DEBUG] Gmail access token: {token}")
-        credentials = google.oauth2.credentials.Credentials(token)
+        # Use the provided token if present, else fallback to DB
+        if token:
+            gmail_token = token
+        else:
+            gmail_token = get_valid_gmail_access_token(current_user, db)
+        print(f"[DEBUG] Gmail access token: {gmail_token}")
+        credentials = google.oauth2.credentials.Credentials(gmail_token)
         service = googleapiclient.discovery.build('gmail', 'v1', credentials=credentials)
         message = service.users().messages().get(userId='me', id=message_id, format='full').execute()
         print(f"[DEBUG] Gmail API message response: {message}")

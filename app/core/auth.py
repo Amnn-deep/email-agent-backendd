@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Header
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from jose import JWTError, jwt
@@ -30,16 +30,24 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-def get_current_user(token: str = None, db: Session = Depends(get_db)):
+def get_current_user(
+    db: Session = Depends(get_db),
+    authorization: str = Header(None)
+):
     credentials_exception = HTTPException(
         status_code=401,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    token = None
+    if authorization:
+        parts = authorization.split()
+        if len(parts) == 2 and parts[0].lower() == "bearer":
+            token = parts[1]
+    # Fallback to cookie if header is missing
     if not token:
-        from fastapi import Request
         import inspect
-        # Try to get token from cookie if not provided
+        from fastapi import Request
         frame = inspect.currentframe().f_back
         request = None
         while frame:
