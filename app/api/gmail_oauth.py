@@ -167,7 +167,7 @@ async def gmail_oauth2callback(request: Request, db: Session = Depends(get_db)):
         print(f"[DEBUG] Gmail account linked for user: {email}")
 
         # Redirect to frontend with email, success, and access_token
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+        frontend_url = os.getenv("FRONTEND_URL", "https://email-agentt.vercel.app")
         return RedirectResponse(url=f"{frontend_url}?email={email}&success=true&token={tokens.get('access_token')}")
     except Exception as e:
         import traceback
